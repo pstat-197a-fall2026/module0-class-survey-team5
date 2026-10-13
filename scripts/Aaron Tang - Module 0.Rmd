@@ -1,0 +1,11 @@
+---
+title: "Module 0 Script"
+author: "Aaron Tang"
+date: "2026-10-16"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
