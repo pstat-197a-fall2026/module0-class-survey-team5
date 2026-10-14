@@ -9,3 +9,35 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r, message = F}
+library(tidyverse)
+library(ggplot2)
+```
+
+
+```{r}
+# Reading data
+background <- read_csv("../data/background-clean.csv")
+
+# Preprocessing data
+background_cleaned <- background %>% 
+  mutate(courses = str_split(courses, ",\\s*")) %>%
+  mutate(num_courses = lengths(courses))
+```
+
+
+```{r}
+ggplot(data = background_cleaned, mapping = aes(x = as.factor(num_courses), y = stat.comf)) +
+  geom_boxplot()
+```
+
+
+```{r}
+# Linear Regression
+lm_model <- lm(stat.comf ~ num_courses, data = background_cleaned)
+summary(lm_model)
+```
+
+
+
+
