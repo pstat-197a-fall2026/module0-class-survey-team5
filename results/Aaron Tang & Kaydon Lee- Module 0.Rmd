@@ -45,14 +45,10 @@ summary(lm_model)
 
 
 ```{r}
-# Linear regression coefficients 
-coefs <- coef(lm_model)
-intercept_val <- coefs[1]
-slope_val <- coefs[2]
-
-ggplot(data = background_cleaned, mapping = aes(x = as.factor(num_courses), y = stat.comf)) +
-  geom_boxplot() + 
-  geom_abline(intercept = intercept_val, slope = slope_val, color = "red") +
+# Boxplots with fitted linear regression line
+ggplot(data = background_cleaned, mapping = aes(x = num_courses, y = stat.comf)) +
+  geom_boxplot(aes(group = factor(num_courses))) + 
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
   labs(
     x = "Number of Courses",
     y = "Comfort Level with Statistics",
