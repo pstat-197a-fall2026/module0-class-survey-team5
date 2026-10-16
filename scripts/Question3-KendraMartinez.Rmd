@@ -1,0 +1,93 @@
+---
+title: "Module 0"
+author: "Kendra Martinez"
+date: "2026-10-16"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message = F}
+library(tidyverse)
+library(cluster)
+```
+
+```{r}
+bg  <- read_csv("/Users/kendra/Desktop/PSTAT-197A/Module-0-Team-5/module0-class-survey-team5/data/background-clean.csv")
+int <- read_csv("/Users/kendra/Desktop/PSTAT-197A/Module-0-Team-5/module0-class-survey-team5/data/interest-clean.csv")
+
+area_opts <- c("Analysis or classification of images",
+               "Deep learning and neural networks",
+               "Spatial statistics or time series analysis",
+               "Data acquisition and engineering",
+               "Natural language processing and analysis of text",
+               "Model deployment and software or web integrations",
+               "Data visualization and interactive dashboards",
+               "Predictive modeling, generally",
+               "Statistical models and inference, generally",
+               "Databases", "Algorithms")
+
+dat <- bg %>%
+  inner_join(int, by = "response_id") %>%
+  mutate(n_courses = str_count(courses, ",") + 1,
+         n_areas   = map_int(areas, ~ sum(str_detect(.x, fixed(area_opts))))) %>%
+  drop_na(prog.comf, math.comf, stat.comf, n_courses, n_areas)
+
+X <- dat %>%
+  select(prog.comf, math.comf, stat.comf, n_courses, n_areas) %>%
+  scale()
+
+# Choosing k: elbow and silhouette
+set.seed(126)
+k_vals <- 1:8
+wss <- map_dbl(k_vals, ~ kmeans(X, centers = .x, nstart = 25)$tot.withinss)
+
+d <- dist(X)
+sil <- map_dbl(2:8, function(k) {
+  km <- kmeans(X, centers = k, nstart = 25)
+  mean(silhouette(km$cluster, d)[, "sil_width"])
+})
+
+k_df <- tibble(k = k_vals, wss = wss, sil = c(NA, sil))
+
+ggplot(k_df, aes(k, wss)) +
+  geom_line() + geom_point() +
+  scale_x_continuous(breaks = k_vals) +
+  labs(title = "Elbow method", x = "Number of clusters (k)",
+       y = "Total within-cluster sum of squares")
+
+ggplot(filter(k_df, k >= 2), aes(k, sil)) +
+  geom_line() + geom_point() +
+  scale_x_continuous(breaks = 2:8) +
+  labs(title = "Silhouette method", x = "Number of clusters (k)",
+       y = "Average silhouette width")
+
+# Fit the final model
+set.seed(126)
+km <- kmeans(X, centers = 3, nstart = 25)   # change 3 to your chosen k
+dat$cluster <- factor(km$cluster)
+
+# Cluster plot: project onto the first two principal components 
+pca <- prcomp(X)
+pve <- round(100 * summary(pca)$importance[2, 1:2], 1)
+
+as_tibble(pca$x[, 1:2]) %>%
+  mutate(cluster = dat$cluster) %>%
+  ggplot(aes(PC1, PC2, color = cluster)) +
+  geom_jitter(width = 0.05, height = 0.05, size = 2) +
+  stat_ellipse(type = "norm", level = 0.68) +
+  labs(title = "K-means clusters",
+       x = paste0("PC1 (", pve[1], "%)"),
+       y = paste0("PC2 (", pve[2], "%)"))
+
+# Profile each cluster on the original (unscaled) variables
+dat %>%
+  group_by(cluster) %>%
+  summarise(across(c(prog.comf, math.comf, stat.comf, n_courses, n_areas), mean),
+            size = n())
+
+# Do the profiles line up with project preference?
+table(dat$cluster, dat$type)
+```

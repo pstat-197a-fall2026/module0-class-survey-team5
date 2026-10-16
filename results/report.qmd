@@ -1,7 +1,6 @@
 ---
 title: "Analysis of class surveys"
-subtitle: "If you want a subtitle put it here"
-author: "List names here"
+author: "Aaron Tang, Kaydon Lee, Ruixi Zhang, and Ruixi Zhang"
 date: last-modified
 published-title: "Updated"
 editor: visual
@@ -17,11 +16,12 @@ execute:
 ```{r}
 # load any other packages and read data here
 library(tidyverse)
+library(cluster)
 ```
 
 ## Executive summary
 
-Write a one-paragraph abstract summarizing what you did and your findings. It need not be comprehensive; try to highlight the most important or interesting outcomes.
+We analyzed survey responses from students in the PSTAT 197 Fall 2026 capstone cohort to see how their academic background relates to their technical confidence and project preferences. A simple linear regression of statistics comfort on the number of course categories selected found essentially no relationship (slope = −0.021, p = 0.726, R² = 0.25%). Statistics comfort stayed around 4 out of 5 regardless of how many courses a student had completed. \[QUESTION 2 SUMMARY RESULTS\] K-means clustering on comfort scores and course count grouped students into three loose technical-confidence profiles: students confident in math and statistics but less so in programming, students with high confidence in all three areas, and students with lower confidence overall. That last group had completed more courses on average than the math- and statistics-confident group. These profiles were not associated with project-type preference (Fisher’s exact test, p = 0.587), and industry projects were the most popular choice in every cluster. Overall, our results suggest that hands-on research experience is more closely tied to students’ confidence than the number of courses they have taken, and that differences in confidence do not translate into different project preferences within this cohort.
 
 ## Data description
 
@@ -73,6 +73,149 @@ ggplot(data = background_cleaned,
 
 In Figure 1, statistics comfort rating remained around 4 across the different course counts, with no indication of increasing/decreasing direction. The fitted regression line, shown in red, displays a very slight negative association with a slope coefficient of -0.2121. This suggests that each additional course category selected is associated with an estimated 0.021-point decrease in statistics comfort, but said relationship is not statistically significant at p = 0.726. Moreover, the model's R\^2 shows that it explains around 0.25% of the variation in statistics comfort. In essence, our findings provide little evidence that the \# of course categories selected predicts student's comfort with statistics within this cohort. It is important to note that some categories cover multiple courses, so our count may not fully reflect student's coursework.
 
+#### Question 2: 
+
+#### Question 3: Are there natural "student profiles" in the class?
+
+To see whether students fall into distinct technical-confidence profiles, we ran a k-means cluster analysis on four variables: students’ self-reported comfort with programming, mathematics, and statistics, and the number of course categories they selected. We standardized all four variables so that no single one dominated the clustering, and chose the number of clusters using the elbow and silhouette methods. We then compared the resulting clusters with students’ project-type preference (industry, research lab, or no preference) to see whether confidence profiles relate to the kind of project students want. The data comes from the 49 students who consented to share both their background and their project interests.
+
+```{r}
+#| echo: false
+#| message: false
+
+# Read and preprocess data
+background <- read_csv("../data/background-clean.csv",
+                       show_col_types = FALSE)
+interest <- read_csv("../data/interest-clean.csv",
+                     show_col_types = FALSE)
+
+kmeans_data <- background %>%
+  inner_join(interest, by = "response_id") %>%
+  mutate(courses = str_split(courses, ",\\s*")) %>%
+  mutate(num_courses = lengths(courses)) %>%
+  drop_na(prog.comf, math.comf, stat.comf, num_courses)
+
+# Standardize clustering variables
+kmeans_scaled <- kmeans_data %>%
+  select(prog.comf, math.comf, stat.comf, num_courses) %>%
+  scale()
+
+# Fit k-means for k = 1 to 8 (elbow) and k = 2 to 8 (silhouette)
+set.seed(126)
+k_vals <- 1:8
+wss <- map_dbl(k_vals, ~ kmeans(kmeans_scaled, centers = .x, nstart = 25)$tot.withinss)
+
+dist_matrix <- dist(kmeans_scaled)
+sil <- map_dbl(2:8, function(k) {
+  km <- kmeans(kmeans_scaled, centers = k, nstart = 25)
+  mean(silhouette(km$cluster, dist_matrix)[, "sil_width"])
+})
+
+k_results <- tibble(k = k_vals, wss = wss, sil = c(NA, sil))
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| fig-width: 8
+#| fig-height: 5
+#| fig-cap: "Total within-cluster sum of squares by number of clusters (elbow method)."
+
+# Elbow plot
+ggplot(data = k_results,
+       mapping = aes(x = k, y = wss)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = 1:8) +
+  labs(
+    x = "Number of Clusters (k)",
+    y = "Total Within-Cluster Sum of Squares",
+    title = "Elbow Method for Choosing k"
+  )
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-width: 8
+#| fig-height: 5
+#| fig-cap: "Average silhouette width by number of clusters (silhouette method)."
+
+# Silhouette plot
+ggplot(data = filter(k_results, k >= 2),
+       mapping = aes(x = k, y = sil)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = 2:8) +
+  labs(
+    x = "Number of Clusters (k)",
+    y = "Average Silhouette Width",
+    title = "Silhouette Method for Choosing k"
+  )
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-width: 8
+#| fig-height: 5
+#| fig-cap: "Student clusters from k-means, projected onto the first two principal components."
+
+# Fit final k-means model
+set.seed(126)
+km_final <- kmeans(kmeans_scaled, centers = 3, nstart = 25)
+kmeans_data$cluster <- factor(km_final$cluster)
+
+# Project onto first two principal components
+pca <- prcomp(kmeans_scaled)
+pve <- round(100 * summary(pca)$importance[2, 1:2], 1)
+
+pca_data <- as_tibble(pca$x[, 1:2]) %>%
+  mutate(cluster = kmeans_data$cluster)
+
+# Scatterplot of clusters
+ggplot(data = pca_data,
+       mapping = aes(x = PC1, y = PC2, color = cluster)) +
+  geom_jitter(width = 0.05, height = 0.05, size = 2) +
+  stat_ellipse(type = "norm", level = 0.68) +
+  labs(
+    x = paste0("PC1 (", pve[1], "%)"),
+    y = paste0("PC2 (", pve[2], "%)"),
+    color = "Cluster",
+    title = "K-Means Clusters of Students"
+  )
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| tbl-cap: "Number of students in each cluster by project-type preference."
+
+# Cross-tabulate clusters with project preference
+kmeans_data %>%
+  count(cluster, type) %>%
+  pivot_wider(names_from = type, values_from = n, values_fill = 0) %>%
+  knitr::kable()
+
+# Fisher's exact test for association between cluster and project preference
+fisher_result <- fisher.test(table(kmeans_data$cluster, kmeans_data$type))
+fisher_p <- round(fisher_result$p.value, 3)
+```
+
+The elbow plot (Figure 2) shows the largest decreases in within-cluster sum of squares from one to two clusters and from two to three, with smaller gains after that, which suggests two or three clusters. Average silhouette width (Figure 3) stayed between about 0.26 and 0.33 for every k tested and rose slightly as k increased. That rise reflects smaller clusters, not clearly better separation. We chose three clusters because it fell within the range suggested by the elbow plot and produced profiles that were easy to interpret, with every group large enough to describe. The silhouette width for three clusters was 0.256, which indicates that the groups overlap and should be read as general tendencies rather than sharply distinct categories.
+
+In Figure 4, the clusters are plotted on the first two principal components, which together explain about 73% of the variation in the data. The first component (46.8%) reflects overall comfort across programming, mathematics, and statistics. The second (25.7%) reflects the number of courses completed. As shown in Table 1, the three clusters can be described as follows:
+
+-   **Cluster 1 (n = 23): Math- and statistics-confident.** These students reported high comfort in mathematics (4.35) and statistics (4.22) but lower comfort in programming (3.52). They had completed the fewest courses on average (6.2).
+
+-   **Cluster 2 (n = 14): Lower confidence overall.** These students reported the lowest comfort in all three subjects (programming 3.21, mathematics 3.00, statistics 3.36), even though they had completed an average of 7.3 courses.
+
+-   **Cluster 3 (n = 12): High confidence across the board.** These students reported the highest comfort in all three subjects (programming 4.58, mathematics 4.42, statistics 4.92) and had completed the most courses (7.9).
+
+Table 2 compares the clusters with students’ project-type preference. Industry projects were the most common choice in every cluster (70%, 57%, and 67% respectively), and few students in any cluster preferred research-lab projects. A Fisher’s exact test found no evidence of an association between cluster membership and project preference (p = `` `r fisher_p` ``). In essence, students in this cohort can be loosely grouped into three technical-confidence profiles, but those profiles do not appear to shape whether students prefer industry or research-lab projects. Notably, the lower-confidence cluster had completed more courses than the math- and statistics-confident cluster, which echoes our Question 1 finding that coursework alone does not predict comfort. It is important to note that the comfort scores are ordinal and take only four values, which k-means treats as continuous, and that our sample of 49 students limits how stable these clusters are.
+
 ### Code chunks
 
 Insert code chunks using the *Insert* drop-down menu or `ctrl + alt + I` . By default in this document, codes will not be shown but results will. If you want to change this behavior, add the chunk option `echo: true` as below.
@@ -111,7 +254,3 @@ my_df %>%
   ggplot(aes(x = animal, y = threatening)) + 
   geom_col()
 ```
-
-### Links
-
-To include any hyperlinks, use `[display text](url)` .
