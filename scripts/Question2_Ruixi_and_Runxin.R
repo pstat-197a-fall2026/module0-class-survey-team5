@@ -1,0 +1,38 @@
+# Response Variable (prog.comf): Students' self-rated programming comfort level (measured on a numeric scale, typically from 1 to 5).
+# Factor 1 (research): Prior research experience, categorized as Yes, No, or Unsure.
+# Factor 2 (domain_specialization): Domain specialization status, categorized as Yes, No, or Unsure.
+
+library(tidyverse)
+library(ggplot2)
+
+# read data
+background <- read_csv("data/background-clean.csv")
+interest <- read_csv("data/interest-clean.csv")
+
+# joins
+df_merged <- inner_join(background, interest, by = "response_id")
+
+#ANOVA
+anova_data <- df_merged %>%
+  select(response_id, prog.comf, research, domain_specialization) %>%
+  drop_na()
+
+anova_model <- aov(prog.comf ~ research * domain_specialization, data = anova_data)
+summary(anova_model)
+
+# plot
+ggplot(anova_data, aes(x = domain_specialization, y = prog.comf, fill = research)) +
+  geom_boxplot(alpha = 0.7, position = position_dodge(0.8)) +
+  labs(
+    title = "Programming Comfort by Research Experience and Domain Specialization",
+    subtitle = "PSTAT 197A Fall 2026 Cohort Analysis",
+    x = "Domain Specialization",
+    y = "Self-Rated Programming Comfort Level",
+    fill = "Research Experience"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 12),
+    legend.position = "bottom"
+  )
+
