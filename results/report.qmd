@@ -73,7 +73,7 @@ ggplot(data = background_cleaned,
 
 In Figure 1, statistics comfort rating remained around 4 across the different course counts, with no indication of increasing/decreasing direction. The fitted regression line, shown in red, displays a very slight negative association with a slope coefficient of -0.2121. This suggests that each additional course category selected is associated with an estimated 0.021-point decrease in statistics comfort, but said relationship is not statistically significant at p = 0.726. Moreover, the model's R\^2 shows that it explains around 0.25% of the variation in statistics comfort. In essence, our findings provide little evidence that the \# of course categories selected predicts student's comfort with statistics within this cohort. It is important to note that some categories cover multiple courses, so our count may not fully reflect student's coursework.
 
-#### Question 2: 
+#### Question 2:
 
 #### Question 3: Are there natural "student profiles" in the class?
 
