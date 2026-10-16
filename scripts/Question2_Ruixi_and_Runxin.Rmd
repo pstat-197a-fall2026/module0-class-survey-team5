@@ -1,16 +1,27 @@
 ---
-title: "Question2_Ruixi_and_Runxin"
-output: html_document
+title: "Module0-Question2"
+author: "Ruixi, Runxin"
+output: 
+      pdf_document: default
 ---
 
-Response Variable (prog.comf): Students' self-rated programming comfort level (measured on a numeric scale, typically from 1 to 5).
-Factor 1 (research): Prior research experience, categorized as Yes, No, or Unsure.
-Factor 2 (domain_specialization): Domain specialization status, categorized as Yes, No, or Unsure.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE,
+                      warning = FALSE)
+```
 
+## Definition of Variable
+- Response Variable (prog.comf): Students' self-rated programming comfort level (measured on a numeric scale, typically from 1 to 5).
 
+- Factor 1 (research): Prior research experience, categorized as Yes, No, or Unsure.
+
+- Factor 2 (domain_specialization): Domain specialization status, categorized as Yes, No, or Unsure.
+
+## Preparation for data
 ```{r}
 library(tidyverse)
 library(ggplot2)
+library(dplyr)
 
 # read data
 background <- read_csv("../data/background-clean.csv")
@@ -18,21 +29,56 @@ interest <- read_csv("../data/interest-clean.csv")
 
 # joins
 df_merged <- inner_join(background, interest, by = "response_id")
-```
 
-```{r}
-#ANOVA
+
+# Prepare data for analysis
 anova_data <- df_merged %>%
   select(response_id, prog.comf, research, domain_specialization) %>%
   drop_na()
-
-anova_model <- aov(prog.comf ~ research * domain_specialization, data = anova_data)
-summary(anova_model)
-
 ```
 
+## Summary statistics for each combination
 ```{r}
-# plot
+group_summary <- anova_data %>%
+  group_by(research, domain_specialization) %>%
+  summarise(
+    n = n(),
+    mean_comfort = mean(prog.comf),
+    sd_comfort = sd(prog.comf),
+    .groups = "drop"
+  )
+
+group_summary
+
+# Check all combinations, including empty groups
+with(anova_data, table(research, domain_specialization))
+```
+
+**Interpretation**:
+
+The analysis includes 49 students across eight observed combinations of research experience and domain specialization. Group sizes are unequal, ranging from 1 to 12 students, and no students selected "Unsure" for both factors. Students who reported both research experience and domain specialization had the highest mean programming comfort score (4.20).
+
+Within each domain specialization category, students with research experience reported higher average programming comfort than those without research experience. However, these differences are descriptive; statistical testing is needed to assess their significance. The small sample sizes in several groups also require cautious interpretation.
+
+## Two-way ANOVA
+```{r}
+anova_model <- aov(
+  prog.comf ~ research * domain_specialization,
+  data = anova_data
+)
+
+summary(anova_model)
+```
+**Interpretation**:
+
+The two-way ANOVA showed a statistically significant result for research experience in the sequential analysis, F(2, 41) = 4.039, p = 0.0251. However, this overall test does not identify which research experience groups differ. Domain specialization was not statistically significant when entered after research experience, F(2, 41) = 1.265, p = 0.2929.
+
+The interaction between research experience and domain specialization was also not statistically significant, F(3, 41) = 0.588, p = 0.6266. Thus, there is insufficient evidence that differences in programming comfort across research experience groups vary by domain specialization. This does not establish that no interaction exists, particularly given the small sample sizes in several groups.
+
+Because the group sizes are unequal, the sequential main-effect tests may depend on the order of the factors. The research experience result, which was tested first, should not be interpreted as an effect adjusted for domain specialization.
+
+## Plot
+```{r}
 ggplot(anova_data, aes(x = domain_specialization, y = prog.comf, fill = research)) +
   geom_boxplot(alpha = 0.7, position = position_dodge(0.8)) +
   labs(
@@ -51,3 +97,10 @@ ggplot(anova_data, aes(x = domain_specialization, y = prog.comf, fill = research
 
 ```
 
+**Interpretation**:
+
+The boxplot shows that students with research experience have higher median programming comfort than those without research experience within each domain specialization category. Students reporting both research experience and domain specialization have the highest median comfort score, approximately 4.5, although their scores also show considerable variation.
+
+The distributions overlap across several groups. Some boxes collapse to a single line because of limited variation in scores or very small group sizes. No box appears for students who selected "Unsure" for both factors because this combination has no observations.
+
+These visual patterns suggest an association between research experience and programming comfort, but the plot alone does not establishstatistically significant differences or an interaction.
